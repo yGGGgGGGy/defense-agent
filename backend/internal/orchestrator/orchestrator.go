@@ -250,6 +250,20 @@ func (o *Orchestrator) ApproveAction(ctx context.Context, recordID string) error
 	return o.auditPool.ApproveAction(ctx, recordID)
 }
 
+// ClearDoneInstances removes completed instances older than the given duration
+func (o *Orchestrator) ClearDoneInstances() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	cleared := 0
+	for id, inst := range o.instances {
+		if inst.Status == types.InstanceDone || inst.Status == types.InstanceFailed {
+			delete(o.instances, id)
+			cleared++
+		}
+	}
+	return cleared
+}
+
 // Shutdown gracefully stops the orchestrator
 func (o *Orchestrator) Shutdown() {
 	for _, inst := range o.ListInstances() {
@@ -330,7 +344,7 @@ func (r *agentRunner) RunAgent(ctx context.Context, node *dag.Node) (string, err
 	// Record to knowledge graph
 	r.graphClient.RecordAgentAction(ctx, r.instanceID, string(node.AgentType), node.ID, output.Summary)
 
-	// Publish SSE event
+	// Publish SSE event with full thinking process
 	r.sseBroker.Publish(r.instanceID, sse.Event{
 		Type: "node_state",
 		Data: map[string]any{
@@ -338,6 +352,8 @@ func (r *agentRunner) RunAgent(ctx context.Context, node *dag.Node) (string, err
 			"agent_type": node.AgentType,
 			"state":      node.State,
 			"summary":    output.Summary,
+			"confidence": output.Confidence,
+			"findings":   output.Findings,
 			"instance_id": r.instanceID,
 		},
 	})

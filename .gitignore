@@ -43,3 +43,4 @@ grafana_data/
 .cc-connect/sessions/
 .cc-connect/run/
 .cc-connect/logs/
+__pycache__/

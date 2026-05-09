@@ -1,241 +1,221 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from './api/client';
 import type { Instance, AuditRecord, AgentInfo } from './types';
-import { DagView } from './components/DagView';
-import { AuditTimeline } from './components/AuditTimeline';
-import { AgentPanel } from './components/AgentPanel';
-import { useSSE } from './hooks/useSSE';
+import { Sidebar } from './components/Sidebar';
+import { ChatView } from './components/ChatView';
+import { ConfigPanel } from './components/ConfigPanel';
+import { AgentConfigPanel } from './components/AgentConfigPanel';
 
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    fontFamily: 'system-ui, sans-serif',
-    maxWidth: 1400,
-    margin: '0 auto',
-    padding: '20px',
-    background: '#f5f5f5',
-    minHeight: '100vh',
-  },
-  header: {
-    background: 'linear-gradient(135deg, #1a56db, #1e3a5f)',
-    color: 'white',
-    padding: '20px 24px',
-    borderRadius: '8px',
-    marginBottom: '20px',
-  },
-  title: { margin: 0, fontSize: '24px' },
-  subtitle: { margin: '4px 0 0', opacity: 0.8, fontSize: '14px' },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '20px',
-  },
-  fullWidth: { gridColumn: '1 / -1' },
-  card: {
-    background: 'white',
-    borderRadius: '8px',
-    padding: '16px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-  },
-  cardTitle: {
-    margin: '0 0 12px',
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#1e3a5f',
-    borderBottom: '2px solid #e5e7eb',
-    paddingBottom: '8px',
-  },
-  button: {
-    padding: '8px 16px',
-    background: '#1a56db',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-  },
-  input: {
-    padding: '8px 12px',
-    border: '1px solid #d1d5db',
-    borderRadius: '4px',
-    fontSize: '14px',
-    width: '100%',
-    boxSizing: 'border-box' as const,
-    marginBottom: '8px',
-  },
-  badge: {
-    display: 'inline-block',
-    padding: '2px 8px',
-    borderRadius: '10px',
-    fontSize: '12px',
-    fontWeight: 600,
-  } as React.CSSProperties,
-  instanceRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '10px 12px',
-    borderBottom: '1px solid #e5e7eb',
-  },
-  select: {
-    padding: '8px 12px',
-    border: '1px solid #d1d5db',
-    borderRadius: '4px',
-    fontSize: '14px',
-  },
+const agentNames: Record<string, string> = {
+  perceiver:'感知',analyst:'分析',responder:'处置',operator:'运维',
+  researcher:'研究',developer:'规划',executor:'执行',adviser:'监督',
+  reflector:'反思',auditor:'审计',memorist:'记忆',
 };
 
-const statusColor: Record<string, string> = {
-  done: '#059669',
-  running: '#1a56db',
-  failed: '#dc2626',
-  pending: '#d97706',
+const sceneNames: Record<string, string> = {
+  incident_response:'应急响应',ops_maintenance:'运维管理',
+  penetration_test:'渗透测试',vulnerability_research:'漏洞挖掘',
+  reverse_engineering:'逆向分析',
 };
+
+type Page = 'chat' | 'agents' | 'config';
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  time: string;
+  instanceId?: string;
+  dagData?: Instance['dag'];
+  auditData?: AuditRecord[];
+  thinking?: Array<{ agent: string; agentCn: string; state: string; summary: string; time: string; confidence?: number }>;
+}
 
 export default function App() {
+  const [page, setPage] = useState<Page>('chat');
   const [instances, setInstances] = useState<Instance[]>([]);
-  const [selectedId, setSelectedId] = useState<string>('');
-  const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [scene, setScene] = useState('incident_response');
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskInput, setTaskInput] = useState('');
+  const [llmStatus, setLlmStatus] = useState('mock');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null!);
 
-  const refresh = useCallback(async () => {
+  const refreshInstances = useCallback(async () => {
     const insts = await api.getInstances();
     setInstances(insts);
   }, []);
 
   useEffect(() => {
-    refresh();
-    api.getAgents().then((d) => setAgents(d.agents));
-    const timer = setInterval(refresh, 3000);
-    return () => clearInterval(timer);
-  }, [refresh]);
+    refreshInstances();
+    api.getAgents().then(d => setAgents(d.agents));
+    fetch('http://localhost:8100/v1/health').then(r => r.json()).then(d => setLlmStatus(d.mode || 'unknown')).catch(()=>{});
+    const t = setInterval(refreshInstances, 2000);
+    return () => clearInterval(t);
+  }, [refreshInstances]);
 
-  const selected = instances.find((i) => i.id === selectedId);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
+  // Auto-configure DeepSeek on first load
   useEffect(() => {
-    if (selectedId) {
-      api.getAuditTrail(selectedId).then(setAuditRecords);
-    }
-  }, [selectedId]);
+    fetch('http://localhost:8100/v1/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        base_url: 'https://api.deepseek.com/anthropic',
+        model: 'deepseek-v4-pro',
+      }),
+    }).catch(() => {});
+  }, []);
 
-  // SSE real-time updates
-  useSSE(selectedId, useCallback((event) => {
-    if (event.type === 'node_state' || event.type === 'instance_update') {
-      refresh();
-    }
-    if (event.type === 'audit_append') {
-      api.getAuditTrail(selectedId!).then(setAuditRecords);
-    }
-  }, [selectedId, refresh]));
-
-  const submitTask = async () => {
-    if (!taskTitle || !taskInput) return;
-    setLoading(true);
-    const inst = await api.createTask({
-      scene,
-      title: taskTitle,
-      description: taskInput,
-      input: taskInput,
+  // Watch running instances for SSE updates
+  const runningInst = instances.find(i => i.status === 'running');
+  useEffect(() => {
+    if (!runningInst) return;
+    const es = new EventSource(`http://localhost:8080/api/v1/events?instance_id=${runningInst.id}`);
+    es.addEventListener('node_state', (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        setMessages(prev => {
+          const idx = prev.findIndex(m => m.instanceId === runningInst.id && m.role === 'assistant');
+          if (idx < 0) return prev;
+          const updated = { ...prev[idx] };
+          const thinking = updated.thinking ? [...updated.thinking] : [];
+          const cn = agentNames[d.agent_type] || d.agent_type;
+          thinking.push({
+            agent: d.agent_type, agentCn: cn,
+            state: d.state, summary: d.summary || '',
+            time: new Date().toLocaleTimeString('zh-CN'),
+            confidence: d.confidence || 0,
+          });
+          updated.thinking = thinking;
+          if (d.state === 'succeeded' || d.state === 'failed') {
+            updated.content = `${cn} Agent ${d.state === 'succeeded' ? '已完成' : '失败'}: ${d.summary || ''}`;
+          }
+          const copy = [...prev];
+          copy[idx] = updated;
+          return copy;
+        });
+      } catch {}
     });
-    setSelectedId(inst.id);
+    es.addEventListener('instance_update', (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d.status === 'done' || d.status === 'failed') {
+          refreshInstances();
+          const instId = runningInst.id;
+          setTimeout(async () => {
+            try {
+              const audit = await api.getAuditTrail(instId);
+              setMessages(prev => {
+                const idx = prev.findIndex(m => m.instanceId === instId && m.role === 'assistant');
+                if (idx < 0) return prev;
+                const copy = [...prev];
+                copy[idx] = { ...copy[idx], auditData: audit };
+                return copy;
+              });
+            } catch {}
+          }, 500);
+        }
+      } catch {}
+    });
+    es.onerror = () => es.close();
+    return () => es.close();
+  }, [runningInst?.id, refreshInstances]);
+
+  const sendMessage = async (text: string) => {
+    const userMsg: ChatMessage = {
+      id: 'u' + Date.now(), role: 'user', content: text,
+      time: new Date().toLocaleTimeString('zh-CN'),
+    };
+    const assistantMsg: ChatMessage = {
+      id: 'a' + Date.now(), role: 'assistant', content: '正在分析任务...',
+      time: new Date().toLocaleTimeString('zh-CN'), thinking: [],
+    };
+    setMessages(prev => [...prev, userMsg, assistantMsg]);
+    setLoading(true);
+
+    // Detect scene from natural language
+    let scene = 'incident_response';
+    const t = text.toLowerCase();
+    if (t.includes('巡检') || t.includes('运维') || t.includes('备份') || t.includes('补丁') || t.includes('健康') || t.includes('审计') || t.includes('合规') || (t.includes('检查') && !t.includes('漏洞'))) scene = 'ops_maintenance';
+    else if (t.includes('漏洞') || t.includes('cve') || t.includes('fuzz') || t.includes('挖掘')) scene = 'vulnerability_research';
+    else if (t.includes('渗透') || t.includes('扫描')) scene = 'penetration_test';
+    else if (t.includes('逆向') || t.includes('二进制') || t.includes('恶意')) scene = 'reverse_engineering';
+    else if (t.includes('告警') || t.includes('应急') || t.includes('入侵') || t.includes('暴力') || t.includes('ssh') || t.includes('强制')) scene = 'incident_response';
+
+    try {
+      const inst = await api.createTask({ scene, title: text.slice(0, 60), description: text, input: text });
+      setMessages(prev => {
+        const copy = [...prev];
+        const idx = copy.findIndex(m => m.id === assistantMsg.id);
+        if (idx >= 0) {
+          copy[idx] = { ...copy[idx], instanceId: inst.id, dagData: inst.dag, content: '任务已创建，Agent 开始执行...' };
+        }
+        return copy;
+      });
+      refreshInstances();
+    } catch (e: any) {
+      setMessages(prev => {
+        const copy = [...prev];
+        const idx = copy.findIndex(m => m.id === assistantMsg.id);
+        if (idx >= 0) copy[idx] = { ...copy[idx], content: '任务提交失败: ' + e.message };
+        return copy;
+      });
+    }
     setLoading(false);
-    setTaskTitle('');
-    setTaskInput('');
-    refresh();
   };
 
+  // Update completed instances with final DAG data
+  useEffect(() => {
+    for (const inst of instances) {
+      if (inst.status === 'done' || inst.status === 'failed') {
+        setMessages(prev => {
+          const idx = prev.findIndex(m => m.instanceId === inst.id && m.role === 'assistant');
+          if (idx < 0) return prev;
+          const copy = [...prev];
+          copy[idx] = { ...copy[idx], dagData: inst.dag };
+          return copy;
+        });
+      }
+    }
+  }, [instances]);
+
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Defense Agent System</h1>
-        <p style={styles.subtitle}>自主决策通用防御智能体 | 11 Agents | DAG 编排 | 审计链</p>
-      </div>
+    <div style={{ display: 'flex', height: '100vh', background: '#0f1117', color: '#e1e4e8', fontFamily: 'system-ui, "Microsoft YaHei", sans-serif' }}>
+      <Sidebar
+        page={page}
+        onPage={setPage}
+        llmStatus={llmStatus}
+        instanceCount={instances.length}
+        agentCount={agents.length}
+        selectedId={null}
+        messages={messages}
+        agentNames={agentNames}
+        sceneNames={sceneNames}
+      />
 
-      {/* Task Submission */}
-      <div style={{ ...styles.card, marginBottom: 20 }}>
-        <h2 style={styles.cardTitle}>Submit Task</h2>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <select style={styles.select} value={scene} onChange={(e) => setScene(e.target.value)}>
-            <option value="incident_response">应急响应</option>
-            <option value="ops_maintenance">运维管理</option>
-            <option value="penetration_test">渗透测试</option>
-            <option value="vulnerability_research">漏洞挖掘</option>
-            <option value="reverse_engineering">逆向分析</option>
-          </select>
-          <input
-            style={{ ...styles.input, flex: 1, minWidth: 200 }}
-            placeholder="Task title (e.g. SSH Brute Force Alert)"
-            value={taskTitle}
-            onChange={(e) => setTaskTitle(e.target.value)}
-          />
-          <input
-            style={{ ...styles.input, flex: 2, minWidth: 300 }}
-            placeholder="Description (e.g. Detected 150+ failed SSH logins from 10.0.0.50)"
-            value={taskInput}
-            onChange={(e) => setTaskInput(e.target.value)}
-          />
-          <button style={styles.button} onClick={submitTask} disabled={loading}>
-            {loading ? 'Submitting...' : 'Submit Task'}
-          </button>
-        </div>
-      </div>
-
-      <div style={styles.grid}>
-        {/* Instances */}
-        <div style={styles.card}>
-          <h2 style={styles.cardTitle}>
-            Instances ({instances.length})
-            <button style={{ ...styles.button, marginLeft: 12, padding: '4px 10px' }} onClick={refresh}>
-              Refresh
-            </button>
-          </h2>
-          <div style={{ maxHeight: 400, overflow: 'auto' }}>
-            {instances.length === 0 && <p style={{ color: '#888' }}>No tasks submitted yet.</p>}
-            {instances.map((inst) => (
-              <div
-                key={inst.id}
-                style={{
-                  ...styles.instanceRow,
-                  background: inst.id === selectedId ? '#eff6ff' : 'transparent',
-                  cursor: 'pointer',
-                }}
-                onClick={() => setSelectedId(inst.id)}
-              >
-                <div>
-                  <strong>{inst.task.title}</strong>
-                  <div style={{ fontSize: '12px', color: '#666' }}>
-                    {inst.id} | Scene: {inst.task.scene}
-                  </div>
-                </div>
-                <span style={{ ...styles.badge, background: statusColor[inst.status] || '#666', color: 'white' }}>
-                  {inst.status}
-                </span>
-              </div>
-            ))}
-          </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ height: 48, background: '#161b22', borderBottom: '1px solid #21262d', display: 'flex', alignItems: 'center', padding: '0 20px', gap: 16, flexShrink: 0 }}>
+          <span style={{ fontWeight: 700, fontSize: 15, color: '#58a6ff' }}>🛡 Defense Agent</span>
+          <span style={{ fontSize: 12, color: '#8b949e' }}>自主决策通用防御智能体</span>
+          <div style={{ flex: 1 }} />
+          <span style={{ fontSize: 11, color: llmStatus === 'live' ? '#3fb950' : '#8b949e', background: '#21262d', padding: '3px 10px', borderRadius: 12 }}>
+            {llmStatus === 'live' ? '🟢 DeepSeek Live' : '⚪ DeepSeek Mock'}
+          </span>
         </div>
 
-        {/* Agents */}
-        <AgentPanel agents={agents} />
-
-        {/* DAG View */}
-        {selected && (
-          <div style={styles.card}>
-            <h2 style={styles.cardTitle}>DAG: {selected.id}</h2>
-            <DagView dag={selected.dag} />
-          </div>
+        {page === 'chat' && (
+          <ChatView
+            messages={messages}
+            loading={loading}
+            onSend={sendMessage}
+            chatEndRef={chatEndRef}
+            agentNames={agentNames}
+            sceneNames={sceneNames}
+          />
         )}
-
-        {/* Audit Trail */}
-        {selected && auditRecords.length > 0 && (
-          <div style={styles.card}>
-            <h2 style={styles.cardTitle}>Audit Chain ({auditRecords.length} records)</h2>
-            <AuditTimeline records={auditRecords} />
-          </div>
-        )}
+        {page === 'agents' && <AgentConfigPanel agents={agents} agentNames={agentNames} />}
+        {page === 'config' && <ConfigPanel onStatusChange={setLlmStatus} />}
       </div>
     </div>
   );

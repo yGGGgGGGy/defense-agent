@@ -56,6 +56,9 @@ func (s *Server) routes() {
 
 	// Knowledge graph
 	s.router.Get("/api/v1/graph/{id}", s.GetGraph)
+
+	// Clear old instances
+	s.router.Post("/api/v1/instances/clear", s.ClearInstances)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -221,6 +224,12 @@ func (s *Server) Metrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "defense_instances_total{status=\"done\"} %d\n", done)
 	fmt.Fprintf(w, "defense_instances_total{status=\"failed\"} %d\n", failed)
 	fmt.Fprintf(w, "defense_instances_total{status=\"all\"} %d\n", len(insts))
+}
+
+// ClearInstances removes all completed/failed instances
+func (s *Server) ClearInstances(w http.ResponseWriter, r *http.Request) {
+	cleared := s.orch.ClearDoneInstances()
+	writeJSON(w, http.StatusOK, map[string]any{"cleared": cleared, "message": fmt.Sprintf("Cleared %d instances", cleared)})
 }
 
 // GetGraph returns knowledge graph data for a task

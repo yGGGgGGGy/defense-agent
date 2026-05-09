@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 )
 
 // Config holds all application configuration
@@ -30,7 +31,7 @@ func Load() *Config {
 		DBName:        envOrDefault("DB_NAME", "defense_agent"),
 		NatsURL:       envOrDefault("NATS_URL", "nats://localhost:4222"),
 		AIServiceURL:  envOrDefault("AI_SERVICE_URL", "http://localhost:8100"),
-		MaxInstances:  10,
+		MaxInstances:  envOrDefaultInt("MAX_INSTANCES", 10),
 		LogLevel:      envOrDefault("LOG_LEVEL", "info"),
 	}
 }
@@ -44,6 +45,15 @@ func (c *Config) DSN() string {
 func envOrDefault(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return def
+}
+
+func envOrDefaultInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
 	}
 	return def
 }
