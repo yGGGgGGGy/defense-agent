@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4;
+    margin: 2.2cm 1.8cm;
+    @bottom-center {
+      content: "第 " counter(page) " 页";
+      font-size: 9pt;
+      color: #999;
+      font-family: "Noto Sans SC", "Noto Serif CJK SC", sans-serif;
+    }
+  }
+  body {
+    font-family: "Noto Sans SC", "Noto Serif CJK SC", sans-serif;
+    font-size: 11pt;
+    line-height: 1.75;
+    color: #222;
+  }
+  h1 {
+    font-size: 20pt;
+    text-align: center;
+    border-bottom: 3px solid #1a56db;
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+    color: #1e3a5f;
+  }
+  .subtitle {
+    text-align: center;
+    color: #888;
+    font-size: 9pt;
+    margin-bottom: 24px;
+  }
+  h2 {
+    font-size: 14pt;
+    color: #1a56db;
+    border-left: 4px solid #1a56db;
+    padding-left: 8px;
+    margin-top: 24px;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 12pt;
+    color: #1e3a5f;
+    margin-top: 18px;
+    page-break-after: avoid;
+  }
+  h4 {
+    font-size: 11pt;
+    color: #333;
+    page-break-after: avoid;
+  }
+  p { margin: 5px 0; }
+  ul, ol { margin: 5px 0; padding-left: 22px; }
+  li { margin: 2px 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+  th {
+    background: #1a56db;
+    color: white;
+    padding: 7px 8px;
+    text-align: left;
+    font-weight: bold;
+  }
+  td {
+    border: 1px solid #ddd;
+    padding: 5px 8px;
+  }
+  tr:nth-child(even) { background: #f8f9fa; }
+  code {
+    background: #f1f3f4;
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-family: "Courier New", monospace;
+    font-size: 8.5pt;
+  }
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 10px 14px;
+    border-radius: 5px;
+    font-size: 8pt;
+    line-height: 1.45;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .highlight-box {
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
+    border-radius: 5px;
+    padding: 10px 14px;
+    margin: 10px 0;
+  }
+  .core-box {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 5px;
+    padding: 10px 14px;
+    margin: 10px 0;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid #ddd;
+    margin: 20px 0;
+  }
+  strong { color: #1e3a5f; }
+</style>
+</head>
+<body>
+
+<h1>自主决策通用防御智能体<br>架构设计方案</h1>
+<p class="subtitle">基于 PentAGI 架构分析的建设思路 | 2026-05-09</p>
+
+<div class="core-box">
+<strong>目标：</strong>构建面向多变真实网络环境的自主决策通用智能体，作为网络安全从业人员的智能增强伙伴，实现从威胁感知、分析研判到响应处置的全闭环自主操作，推动网络安全防御体系从自动化到智能化的根本性跃升。
+</div>
+
+<h2>一、PentAGI 的启示与差距</h2>
+
+<h3>1.1 可复用模式</h3>
+<table>
+<tr><th>机制</th><th>PentAGI 实现</th><th>借鉴价值</th></tr>
+<tr><td>多 Agent 分层协作</td><td>Researcher → Developer → Executor 三阶段流水线</td><td>感知→分析→执行的认知分层可复用</td></tr>
+<tr><td>四层监督机制</td><td>Adviser/Planner/Limits/Reflector</td><td>多层决策质量控制的工程范式，小模型场景提升 2x</td></tr>
+<tr><td>ChainAST 消息压缩</td><td>结构化分段摘要 + QA 保留 + 尾部保留</td><td>长对话上下文管理的可靠方案</td></tr>
+<tr><td>三类记忆联动</td><td>长期(向量)/工作(上下文)/情景(历史)记忆闭环</td><td>知识积累与经验复用的核心基础设施</td></tr>
+<tr><td>沙箱隔离执行</td><td>Docker + 独立网络 + 双节点部署</td><td>安全操作的基础保障</td></tr>
+</table>
+
+<h3>1.2 关键差距</h3>
+<ul>
+  <li><strong>PentAGI 是攻击视角</strong>，缺少防御场景的认知框架与知识体系</li>
+  <li><strong>决策不具备可解释性</strong>——没有审计链路，无法追溯每个决策的证据依据</li>
+  <li><strong>单一渗透场景</strong>，不支持应急响应、逆向分析、漏洞挖掘等多场景动态切换</li>
+  <li><strong>缺乏对抗鲁棒性</strong>——没有对抗干扰防护、操作门禁、熔断机制</li>
+  <li><strong>线性 Flow 模型</strong>，无法支持并行子任务和动态重规划</li>
+</ul>
+
+<h2>二、总体架构：分层认知 + 双闭环</h2>
+
+<pre>
+                    ┌─────────────────────────────────────┐
+                    │       人机交互层（Natural UI）         │
+                    │    自然语言 / 文件 / 图表 / API       │
+                    └───────────────┬─────────────────────┘
+                                    ▼
+            ┌───────────────────────────────────────────────┐
+            │           任务理解层（Semantic Parser）         │
+            │   · 多格式输入解析（自然语言/PDF/压缩包/接口文档） │
+            │   · 意图识别 + 实体抽取 + 场景分类              │
+            │   · 输出：结构化 Task Graph                    │
+            └───────────────────────┬───────────────────────┘
+                                    ▼
+            ┌───────────────────────────────────────────────┐
+            │            编排引擎（Orchestrator）             │
+            │   · 场景路由（渗透 / 应急 / 挖洞 / 逆向 / 合规 / 运维）│
+            │   · 任务分解为 SubTask DAG（支持并行）           │
+            │   · 动态重规划 + 实时策略调整                    │
+            └─────────┬──────────┬──────────┬───────────────┘
+                      ▼          ▼          ▼
+        ┌──────────────┐ ┌──────────┐ ┌──────────────┐ ┌──────────────┐
+        │  感知 Agent   │ │分析 Agent │ │  执行 Agent   │ │  运维 Agent   │
+        │  信息收集     │ │研判推理   │ │  工具调用     │ │  巡检修复     │
+        │  态势构建     │ │根因分析   │ │  响应处置     │ │  配置管控     │
+        └──────┬───────┘ └────┬─────┘ └──────┬───────┘ └──────┬───────┘
+               │              │              │              │
+               └──────────────┴──────────────┴──────────────┘
+                              │
+               ┌──────────────┴──────────────┐
+               ▼                             ▼
+┌──────────────────────────┐ ┌──────────────────────────────┐
+│   内闭环：决策治理         │ │   外闭环：经验进化              │
+│  · Adviser 实时监督       │ │   · 事后复盘 Agent             │
+│  · Auditor 审计链记录     │ │   · 成功/失败模式提取           │
+│  · 安全边界守卫 + 门禁     │ │   · 知识库自动更新              │
+│  · 熔断 + 人工干预接口     │ │   · 场景模板持续优化            │
+└──────────────────────────┘ └──────────────────────────────┘
+</pre>
+
+<h3>架构核心思想</h3>
+<ul>
+  <li><strong>分层认知：</strong>任务理解 → 编排决策 → 感知/分析/执行，每层各司其职</li>
+  <li><strong>双闭环：</strong>内闭环（实时决策治理）保证每次决策可靠；外闭环（事后经验进化）保证系统持续成长</li>
+  <li><strong>DAG 编排：</strong>替代 PentAGI 的线性 Flow，支持并行子任务和失败时的局部重规划</li>
+  <li><strong>场景感知：</strong>路由到不同场景知识库，加载对应的工具集、Playbook 和历史案例</li>
+</ul>
+
+<h2>三、核心模块详细设计</h2>
+
+<h3>3.1 任务理解层</h3>
+<p>这是 PentAGI 最薄弱的一环，也是防御体系最关键的部分——防御任务往往来自告警、工单、报告等多种非结构化输入。</p>
+
+<table>
+<tr><th>能力</th><th>实现方案</th></tr>
+<tr><td><strong>多格式输入解析</strong></td><td>独立 Parser Pipeline：自然语言 → Markdown/PDF → 压缩包 → API 接口文档，统一输出结构化 Task Graph</td></tr>
+<tr><td><strong>意图识别</strong></td><td>LLM + Few-shot 将用户输入映射到场景标签（渗透测试/应急响应/漏洞挖掘/逆向分析/合规检查），并识别关键约束（时间窗口、影响范围、优先级）</td></tr>
+<tr><td><strong>实体抽取</strong></td><td>提取 IP、域名、CVE 编号、工具名、文件路径、时间约束、资产标识等，形成结构化 Context Object</td></tr>
+<tr><td><strong>任务规划</strong></td><td>借鉴 PentAGI Planner Agent，增加<strong>场景模板库</strong>作为先验约束，避免 LLM 自由发挥导致偏离场景</td></tr>
+</table>
+
+<h3>3.2 场景路由与编排引擎</h3>
+<p>PentAGI 只有单一渗透流程。防御体系需要多场景动态路由。</p>
+
+<pre>
+输入任务 → 场景识别 → 加载场景知识库 → 生成 SubTask DAG
+                         │
+            ┌────────────┬────────────┬────────────┬────────────┐
+            ▼            ▼            ▼            ▼            ▼
+        渗透测试     应急响应      逆向分析      漏洞挖掘     运维管理
+        模板库       模板库        模板库        模板库       模板库
+        · Toolset   · Toolset    · Toolset    · Toolset   · Toolset
+        · Playbook  · Playbook   · Playbook   · Playbook  · Playbook
+        · Cases     · Cases      · Cases      · Cases     · Cases
+</pre>
+
+<table>
+<tr><th>机制</th><th>设计</th></tr>
+<tr><td><strong>DAG 而非线性 Flow</strong></td><td>允许并行子任务——例如同时进行信息收集和漏洞库查询；子任务间用依赖关系连接</td></tr>
+<tr><td><strong>动态重规划</strong></td><td>当某个子任务失败或发现新信息（如扫描发现意外端口），Planner 自动重新规划下游 DAG</td></tr>
+<tr><td><strong>场景知识库</strong></td><td>每个场景独立维护 Tool Profile（可用工具及参数约束）、Playbook（标准操作流程）、历史案例（向量化）</td></tr>
+<tr><td><strong>优先级调度</strong></td><td>应急响应场景下，信息收集和阻断类 Action 自动获得更高优先级</td></tr>
+</table>
+
+<h3>3.3 Agent 角色体系</h3>
+<p>在 PentAGI 的 11 种 Agent 基础上，针对防御场景扩展：</p>
+
+<table>
+<tr><th>Agent</th><th>PentAGI 原有</th><th>防御体系新增/强化职责</th><th>调用上限</th></tr>
+<tr><td><strong>Perceiver（感知）</strong></td><td>无</td><td>态势感知：日志采集、流量分析、资产发现、告警聚合</td><td>100</td></tr>
+<tr><td><strong>Analyst（分析）</strong></td><td>无</td><td>研判推理：告警关联分析、攻击链还原（ATT&CK映射）、根因定位、影响评估</td><td>100</td></tr>
+<tr><td><strong>Responder（处置）</strong></td><td>无</td><td>响应执行：流量阻断、主机隔离、补丁修复、服务恢复</td><td>100</td></tr>
+<tr><td><strong>Researcher（研究）</strong></td><td>有</td><td>扩展：支持防御侧威胁情报查询、CVE 漏洞库比对、IOC 关联</td><td>20</td></tr>
+<tr><td><strong>Developer（规划）</strong></td><td>有</td><td>强化：场景感知的多策略规划，生成带有置信度评分的候选方案</td><td>20</td></tr>
+<tr><td><strong>Executor（执行）</strong></td><td>有</td><td>保持：工具调用与结果处理，增加操作前后的状态校验</td><td>100</td></tr>
+<tr><td><strong>Adviser（监督）</strong></td><td>有(Beta)</td><td>强化：增加安全边界守卫（禁止操作白名单外命令）、风险阈值拦截、异常行为检测</td><td>20</td></tr>
+<tr><td><strong>Reflector（反思）</strong></td><td>有</td><td>保持：LLM 调用失败时的反思纠错</td><td>20</td></tr>
+<tr><td><strong>Auditor（审计）</strong></td><td>无</td><td><strong>核心新增：</strong>记录每个决策的证据链、生成可审计的决策日志、关键操作门禁确认</td><td>20</td></tr>
+<tr><td><strong>Memorist（记忆）</strong></td><td>有</td><td>保持：向量存储写入/检索，增加防御经验模式存储</td><td>20</td></tr>
+<tr><td><strong>Operator（运维）</strong></td><td>无</td><td><strong>核心新增：</strong>系统健康巡检、配置合规检查、补丁与版本管理、备份恢复、资源容量规划、服务启停与编排、日志轮转与清理、证书与密钥生命周期管理</td><td>100</td></tr>
+</table>
+
+<h3>3.4 运维 Agent 详细设计（Operator）</h3>
+<p>运维 Agent 是防御体系的<strong>基础保障层</strong>，负责系统的日常健康维护与配置管控。不同于 Perceiver/Analyst/Responder 面向安全事件，Operator 面向系统本身的可靠性和合规性。</p>
+
+<table>
+<tr><th>子能力</th><th>功能描述</th><th>典型工具/操作</th></tr>
+<tr><td><strong>健康巡检</strong></td><td>定期检查系统、服务、进程运行状态，自动识别异常并生成巡检报告</td><td>systemctl status, kubectl get pods, docker ps, curl health endpoint, top/htop</td></tr>
+<tr><td><strong>配置合规检查</strong></td><td>对照安全基线（CIS/NIST/等保）自动审计系统配置，标记不合规项</td><td>lynis, openscap, cis-benchmark rules, 自定义合规脚本</td></tr>
+<tr><td><strong>补丁与版本管理</strong></td><td>扫描可用更新，评估风险等级，生成升级计划，执行灰度升级</td><td>apt/yum update check, CVE-version mapping, canary deploy, rollback</td></tr>
+<tr><td><strong>备份与恢复</strong></td><td>自动化数据备份策略管理，定期校验备份完整性，灾难恢复演练</td><td>pg_dump, restic, velero, snapshot, S3 sync</td></tr>
+<tr><td><strong>资源容量规划</strong></td><td>监控 CPU/内存/磁盘/网络使用趋势，预测瓶颈并提前扩容建议</td><td>Prometheus metrics, df -h, iostat, capacity forecast model</td></tr>
+<tr><td><strong>服务启停与编排</strong></td><td>按依赖顺序安全启停服务，处理滚动更新和零停机部署</td><td>docker compose, kubectl, systemctl, ansible playbook</td></tr>
+<tr><td><strong>日志轮转与清理</strong></td><td>管理日志保留策略，自动轮转归档，清理过期数据和临时文件</td><td>logrotate, journalctl --vacuum, find + rm, tmpwatch</td></tr>
+<tr><td><strong>证书与密钥管理</strong></td><td>监控 TLS 证书到期时间，自动续期或告警；密钥轮换与合规存储</td><td>certbot, openssl, vault, aws secrets manager</td></tr>
+</table>
+
+<p>运维 Agent 与其他 Agent 的协作关系：</p>
+<ul>
+  <li><strong>→ Perceiver：</strong>接收巡检发现的异常指标，触发感知 Agent 进行深度态势分析</li>
+  <li><strong>→ Responder：</strong>当发现配置漏洞或过期组件时，将修复任务转交处置 Agent 执行</li>
+  <li><strong>→ Auditor：</strong>巡检结果和配置变更记录同步到审计链，确保运维操作可追溯</li>
+  <li><strong>→ Memorist：</strong>将系统健康基线和最佳配置模式存入长期记忆，用于异常检测基准</li>
+</ul>
+
+<h2>四、决策可解释性与审计体系（核心创新）</h2>
+
+<p>这是本方案与 PentAGI 最大的区别点，也是课题的核心竞争力所在。</p>
+
+<h3>4.1 审计链模型</h3>
+<pre>
+SubTask → Action → 决策理由（rationale）→ 证据引用 → 审计记录
+                                                    │
+                        ┌───────────────────────────┘
+                        ▼
+              Audit Trail Record
+              {
+                "decision": "封禁源 IP 192.168.1.100",
+                "rationale": "检测到暴力破解攻击，30秒内 SSH 登录失败次数超过阈值（>100次/min），
+                              源 IP 同时触发了3条关联告警",
+                "evidence": [
+                  {"type": "alert", "id": "ALERT-2026-001", "rule": "SSH_BRUTE_FORCE"},
+                  {"type": "log_snippet", "source": "/var/log/auth.log", "lines": "234-256"},
+                  {"type": "threat_intel", "source": "AbuseIPDB", "score": 0.94}
+                ],
+                "confidence": 0.92,
+                "agent_id": "responder-03",
+                "task_id": "TASK-IR-2026-0042",
+                "timestamp": "2026-05-09T10:30:00Z",
+                "human_approval_required": false
+              }
+</pre>
+
+<h3>4.2 实现机制</h3>
+
+<table>
+<tr><th>层级</th><th>机制</th><th>说明</th></tr>
+<tr><td><strong>LLM 输出层</strong></td><td>强制 Rationale 输出</td><td>System Prompt 要求每个 Action 必须包含 <code>rationale</code> 字段，说明决策依据和推理过程</td></tr>
+<tr><td><strong>工具执行层</strong></td><td>自动证据关联</td><td>工具执行输出（终端日志、API 响应）自动关联到对应决策记录，形成完整证据链</td></tr>
+<tr><td><strong>操作门禁层</strong></td><td>分级管控</td><td>高风险操作（阻断流量、删除数据、修改配置）必须经 Auditor Agent 确认；可配置人工审批阈值</td></tr>
+<tr><td><strong>存储层</strong></td><td>审计日志持久化</td><td>所有决策记录存入 PostgreSQL + Neo4j 图中，支持按任务/时间/Agent 多维追溯</td></tr>
+<tr><td><strong>展示层</strong></td><td>决策链路可视化</td><td>前端以时间线+证据节点图形式展示，用户可点击每个决策查看完整的推理链和引用证据</td></tr>
+</table>
+
+<h3>4.3 安全操作分级</h3>
+<table>
+<tr><th>风险等级</th><th>操作示例</th><th>管控措施</th></tr>
+<tr><td><strong>低（只读）</strong></td><td>查询日志、扫描端口、检索 CVE</td><td>自动执行，无需审批</td></tr>
+<tr><td><strong>中（影响小）</strong></td><td>创建隔离 VLAN、修改非生产防火墙规则</td><td>Auditor 自动审批 + 事后审计</td></tr>
+<tr><td><strong>高（影响大）</strong></td><td>阻断生产流量、隔离核心服务器、删除文件</td><td>Auditor 审查 + 人工确认（可配置自动审批阈值）</td></tr>
+<tr><td><strong>危险（不可逆）</strong></td><td>DROP 数据库表、卸载安全组件、修改系统内核参数</td><td>强制人工审批，不允许自动执行</td></tr>
+</table>
+
+<h2>五、运行鲁棒性设计</h2>
+
+<table>
+<tr><th>机制</th><th>设计</th><th>解决的问题</th></tr>
+<tr><td><strong>对抗干扰防护</strong></td><td>Agent 输入加入完整性校验层：检测 Prompt Injection 尝试、异常指令模式、结构化字段篡改</td><td>防止攻击者通过污染日志或告警来误导 Agent</td></tr>
+<tr><td><strong>状态快照与回滚</strong></td><td>每个 Task 完成时自动保存状态快照（DAG 进度 + 工具输出 + Agent 状态），失败时回滚到最近检查点</td><td>长任务中断后不需要从头开始</td></tr>
+<tr><td><strong>熔断机制</strong></td><td>Adviser 检测到连续异常决策（3次高风险操作或5次工具调用失败），自动暂停并请求人工介入</td><td>防止 Agent 在异常状态下持续产生错误决策</td></tr>
+<tr><td><strong>确定性保证</strong></td><td>关键推理链路使用 Temperature=0 + 固定 seed，确保相同上下文产生相同输出</td><td>满足审计可复现性要求</td></tr>
+<tr><td><strong>行为复现</strong></td><td>完整的 Action Log + Message Chain 序列化，支持逐步骤回放，所有状态可复原</td><td>事后复盘和合规审计</td></tr>
+<tr><td><strong>工具调用去重</strong></td><td>借鉴 PentAGI 重复检测器，防止 Agent 陷入无效循环</td><td>避免资源浪费和超时</td></tr>
+</table>
+
+<h2>六、记忆与知识体系</h2>
+
+<table>
+<tr><th>记忆类型</th><th>存储介质</th><th>内容</th><th>更新机制</th></tr>
+<tr><td><strong>短期工作记忆</strong></td><td>会话上下文</td><td>当前任务 DAG 状态、活跃 SubTask、工具输出缓存、用户偏好</td><td>实时写入，会话结束清空</td></tr>
+<tr><td><strong>长期知识记忆</strong></td><td>pgvector 向量库 + Neo4j 图库</td><td>历史案例向量化、CVE/漏洞库、ATT&CK 技战术映射、资产关联图谱、合规框架</td><td>外闭环复盘 Agent 自动更新</td></tr>
+<tr><td><strong>情景经验记忆</strong></td><td>Neo4j + 模式库</td><td>成功/失败任务模式、工具使用最佳实践、各场景决策偏好（应急优先速度，挖洞优先深度）</td><td>模式提取 Agent 周期性挖掘</td></tr>
+</table>
+
+<p><strong>知识反馈闭环：</strong></p>
+<pre>
+当前任务上下文 → 向量库检索相似历史案例 → 加载相关 ATT&CK 技战术
+  → 执行动作 → 产生结果 → 提取模式 → 反哺向量库和场景模板库
+</pre>
+
+<h2>七、技术选型建议</h2>
+
+<table>
+<tr><th>层次</th><th>建议方案</th><th>理由</th></tr>
+<tr><td><strong>后端框架</strong></td><td>Go（主体）+ Python（AI 推理微服务）</td><td>Go 高性能、并发好，适合编排引擎和工具调度；Python AI 生态丰富，适合 LLM 调用和数据分析</td></tr>
+<tr><td><strong>前端</strong></td><td>React + TypeScript</td><td>审计面板、DAG 可视化、决策链路追溯、实时态势看板</td></tr>
+<tr><td><strong>向量数据库</strong></td><td>pgvector 或 Milvus</td><td>历史案例语义搜索；pgvector 可复用 PostgreSQL，Milvus 适合大规模场景</td></tr>
+<tr><td><strong>图数据库</strong></td><td>Neo4j</td><td>攻击路径建模、资产关联、决策证据链（Audit Trail Graph）</td></tr>
+<tr><td><strong>任务队列</strong></td><td>NATS 或 RabbitMQ</td><td>Agent 间异步通信，支持 DAG 依赖编排</td></tr>
+<tr><td><strong>沙箱环境</strong></td><td>Docker + gVisor</td><td>隔离工具执行，防止渗透工具影响宿主机；生产环境建议独立 Worker 节点</td></tr>
+<tr><td><strong>可观测性</strong></td><td>OpenTelemetry → Grafana + Jaeger + Loki</td><td>审计链路复用分布式 Trace（每个 SubTask 为一个 Span）</td></tr>
+<tr><td><strong>LLM 网关</strong></td><td>多 Provider 抽象层（借鉴 PentAGI）</td><td>支持 OpenAI / Anthropic / 本地模型切换，降低单点依赖风险</td></tr>
+</table>
+
+<h2>八、消息链与上下文管理</h2>
+
+<p>借鉴 PentAGI 的 ChainAST 压缩方案，针对防御场景做调整：</p>
+
+<table>
+<tr><th>参数</th><th>PentAGI 默认</th><th>防御体系建议</th><th>原因</th></tr>
+<tr><td>尾部保留大小</td><td>50KB / 75KB</td><td>128KB（Assistant）</td><td>防御任务上下文更大（告警、日志、IOC）</td></tr>
+<tr><td>保留 QA 段数</td><td>7-10</td><td>5</td><td>防御场景更强调当前状态而非对话历史</td></tr>
+<tr><td>压缩触发阈值</td><td>未明确</td><td>Token 使用率达到 70% 时触发</td><td>给后续推理预留足够空间</td></tr>
+<tr><td>关键信息锁定</td><td>无</td><td>关键实体（IP/CVE/资产ID）标记为不可压缩</td><td>防止压缩丢失关键上下文</td></tr>
+</table>
+
+<h2>九、与 PentAGI 的关键区别总结</h2>
+
+<table>
+<tr><th>维度</th><th>PentAGI（攻击侧）</th><th>本方案（防御智能体）</th></tr>
+<tr><td><strong>定位</strong></td><td>纯攻击，渗透测试</td><td>攻防兼备，侧重防御决策</td></tr>
+<tr><td><strong>场景覆盖</strong></td><td>单一（渗透测试）</td><td>多场景（应急响应 / 漏洞挖掘 / 逆向分析 / 渗透测试 / 合规检查）</td></tr>
+<tr><td><strong>决策可解释性</strong></td><td>无，黑盒决策</td><td><strong>核心特性</strong>——每步决策携带 rationale + evidence 完整审计链</td></tr>
+<tr><td><strong>编排模型</strong></td><td>线性 Flow → Task → SubTask</td><td>DAG 编排，支持并行 + 动态重规划</td></tr>
+<tr><td><strong>Agent 体系</strong></td><td>11 种（以攻击执行为核心）</td><td>11 种（新增 Perceiver/Analyst/Responder/Auditor/Operator，强化防御认知与运维保障）</td></tr>
+<tr><td><strong>安全管控</strong></td><td>仅沙箱隔离</td><td>沙箱 + 四级操作门禁 + 风险熔断 + 人工审批接口</td></tr>
+<tr><td><strong>鲁棒性</strong></td><td>重试 + 监督 + 反思</td><td>重试 + 监督 + 反思 + 检查点回滚 + 熔断 + 确定性保证 + 对抗干扰防护</td></tr>
+<tr><td><strong>知识体系</strong></td><td>渗透工具知识 + 漏洞库</td><td>防御知识 + ATT&CK + CVE + 威胁情报 + 合规框架 + 资产图谱</td></tr>
+<tr><td><strong>记忆机制</strong></td><td>三类记忆联动</td><td>复用 + 增强：防御经验模式存储、场景偏好学习</td></tr>
+</table>
+
+<hr>
+
+<h2>十、实施路径建议</h2>
+
+<table>
+<tr><th>阶段</th><th>目标</th><th>关键产出</th></tr>
+<tr><td><strong>Phase 1：基础框架</strong></td><td>搭建核心编排引擎 + 单场景（应急响应）MVP</td><td>DAG 编排器、Perceiver/Analyst/Responder/Operator 四 Agent、基础审计链、沙箱环境</td></tr>
+<tr><td><strong>Phase 2：多场景扩展</strong></td><td>接入渗透测试、漏洞挖掘场景，建立场景路由</td><td>场景知识库模板、Planner 强化、动态重规划</td></tr>
+<tr><td><strong>Phase 3：鲁棒性增强</strong></td><td>完善监督治理体系，实现双闭环</td><td>Auditor 门禁、熔断机制、外闭环经验进化、对抗干扰防护</td></tr>
+<tr><td><strong>Phase 4：可视化与审计</strong></td><td>决策链路可视化，审计面板，合规报告自动生成</td><td>决策时间线视图、证据链图、一键审计报告导出</td></tr>
+</table>
+
+<div class="highlight-box">
+<p><strong>总结：</strong>本方案的核心思路是在 PentAGI 验证过的多 Agent 协作 + 多层监督工程范式基础上，针对防御场景做四个关键突破：</p>
+<ol>
+  <li><strong>决策可解释性与审计体系</strong>——每个决策携带完整的 rationale + evidence 链路</li>
+  <li><strong>多场景认知框架</strong>——从单渗透扩展为场景感知的动态路由 DAG 编排，覆盖渗透/应急/挖洞/逆向/运维/合规</li>
+  <li><strong>运行鲁棒性体系</strong>——从简单的重试+反思，升级为对抗防护+检查点+熔断+确定性保证的完整韧性框架</li>
+  <li><strong>运维保障层</strong>——Operator Agent 提供系统健康巡检、配置合规、补丁管理、备份恢复的自主运维能力，确保防御体系自身的高可用性</li>
+</ol>
+</div>
+
+</body>
+</html>

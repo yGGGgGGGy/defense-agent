@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4;
+    margin: 2.5cm 2cm;
+    @top-center {
+      content: "PentAGI 架构分析报告";
+      font-size: 10pt;
+      color: #666;
+      font-family: "Noto Sans SC", "Noto Serif CJK SC", sans-serif;
+    }
+    @bottom-center {
+      content: "第 " counter(page) " 页";
+      font-size: 9pt;
+      color: #999;
+      font-family: "Noto Sans SC", "Noto Serif CJK SC", sans-serif;
+    }
+  }
+  body {
+    font-family: "Noto Sans SC", "Noto Serif CJK SC", sans-serif;
+    font-size: 12pt;
+    line-height: 1.8;
+    color: #222;
+  }
+  h1 {
+    font-size: 22pt;
+    text-align: center;
+    border-bottom: 3px solid #2563eb;
+    padding-bottom: 12px;
+    margin-bottom: 8px;
+    color: #1e3a5f;
+  }
+  .subtitle {
+    text-align: center;
+    color: #666;
+    font-size: 10pt;
+    margin-bottom: 30px;
+  }
+  h2 {
+    font-size: 16pt;
+    color: #2563eb;
+    border-left: 4px solid #2563eb;
+    padding-left: 10px;
+    margin-top: 30px;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 13pt;
+    color: #1e3a5f;
+    margin-top: 20px;
+    page-break-after: avoid;
+  }
+  h4 {
+    font-size: 12pt;
+    color: #333;
+    page-break-after: avoid;
+  }
+  p { margin: 6px 0; }
+  ul, ol { margin: 6px 0; padding-left: 24px; }
+  li { margin: 3px 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 10pt;
+    page-break-inside: avoid;
+  }
+  th {
+    background: #2563eb;
+    color: white;
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: bold;
+  }
+  td {
+    border: 1px solid #ddd;
+    padding: 6px 10px;
+  }
+  tr:nth-child(even) { background: #f8f9fa; }
+  code {
+    background: #f1f3f4;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: "Courier New", monospace;
+    font-size: 9pt;
+  }
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 9pt;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .highlight-box {
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 12px 0;
+  }
+  .divider {
+    border: none;
+    border-top: 1px solid #ddd;
+    margin: 24px 0;
+  }
+  strong { color: #1e3a5f; }
+</style>
+</head>
+<body>
+
+<h1>PentAGI 工作原理与架构分析</h1>
+<p class="subtitle">分析日期：2026-05-09 | 仓库：github.com/vxcontrol/pentagi | Stars: 16.6k</p>
+
+<h2>1. 项目定位</h2>
+<p>PentAGI（<strong>P</strong>enetration testing <strong>A</strong>rtificial <strong>G</strong>eneral <strong>I</strong>ntelligence）是一个<strong>开源、自托管的自主渗透测试系统</strong>。后端使用 Go 语言，前端 React + TypeScript，采用多 AI Agent 协作完成复杂的安全测试任务。系统集成 20+ 专业安全工具（nmap、Metasploit、sqlmap 等），所有操作在沙箱化 Docker 容器中执行。</p>
+
+<div class="highlight-box">
+<strong>核心定位：</strong>面向信息安全专业人士、研究者和爱好者，提供完全自主可控的 AI 驱动渗透测试方案。自托管部署，用户对部署和数据拥有完全控制权。
+</div>
+
+<h2>2. 整体架构</h2>
+<p>系统采用<strong>微服务架构</strong>，支持水平扩展。核心组件通过 Docker Compose 编排，分为三个独立网络层级：</p>
+
+<table>
+<tr><th>层级</th><th>组件</th><th>职责</th></tr>
+<tr><td>核心服务层</td><td>React UI + Go API + PostgreSQL/pgvector + 任务队列</td><td>用户交互、API 网关、数据持久化、异步处理</td></tr>
+<tr><td>知识图谱层</td><td>Neo4j + Graphiti API</td><td>语义关系追踪，捕获 Agent 响应和工具执行记录</td></tr>
+<tr><td>监控层</td><td>Grafana + VictoriaMetrics + Jaeger + Loki</td><td>OpenTelemetry 全链路可观测性</td></tr>
+<tr><td>分析层</td><td>Langfuse + ClickHouse + Redis + MinIO</td><td>LLM 可观测性、分析数据仓库、缓存、对象存储</td></tr>
+</table>
+
+<h2>3. 多 Agent 协作系统（核心架构）</h2>
+
+<h3>3.1 工作流层级模型</h3>
+<pre>
+Flow（顶层渗透测试活动）
+ └── Task（任务）
+      └── SubTask（子任务，绑定特定 Agent 类型）
+           └── Action（具体动作：命令/搜索/分析/执行）
+                ├── Artifact（产物：文件/报告/日志/截图）
+                └── Memory（记忆：观察/结论 + 向量嵌入）</pre>
+
+<h3>3.2 四阶段 Agent 协作流程</h3>
+<p>这是 PentAGI 最核心的设计 — <strong>Orchestrator（编排器）协调三类专业 Agent 完成渗透测试全流程</strong>：</p>
+
+<h4>Phase 1 — 研究阶段（Researcher Agent）</h4>
+<ul>
+  <li>Orchestrator 将目标信息发送给 Researcher</li>
+  <li>Researcher 搜索类似案例、查询已知漏洞（CVE）</li>
+  <li>将发现存入向量存储（pgvector），返回研究结果</li>
+</ul>
+
+<h4>Phase 2 — 规划阶段（Developer Agent）</h4>
+<ul>
+  <li>Orchestrator 将研究结果传给 Developer</li>
+  <li>Developer 查询 Exploit 数据库（Sploitus 等）和工具信息</li>
+  <li>生成<strong>结构化攻击计划</strong>返回给 Orchestrator</li>
+</ul>
+
+<h4>Phase 3 — 执行阶段（Executor / Pentester Agent）</h4>
+<ul>
+  <li>Orchestrator 将攻击计划发送给 Executor</li>
+  <li>Executor 加载工具使用指南（Tool Guides），执行具体攻击步骤</li>
+  <li>结果和状态持续回传，存入知识图谱（Graphiti + Neo4j）</li>
+</ul>
+
+<h4>全程并行支撑系统</h4>
+<ul>
+  <li><strong>Vector Store</strong>（pgvector）— 提供历史案例的语义搜索和相似任务匹配</li>
+  <li><strong>Knowledge Base</strong>（Neo4j 图数据库）— 存储领域知识、工具能力和实体关系</li>
+</ul>
+
+<h3>3.3 Agent 类型清单（11 种）</h3>
+<table>
+<tr><th>Agent</th><th>角色定位</th><th>工具调用上限</th></tr>
+<tr><td><strong>Assistant</strong></td><td>主编排器，管理 Flow 生命周期</td><td>100（通用级）</td></tr>
+<tr><td><strong>Pentester</strong></td><td>渗透执行，运行安全工具</td><td>100（通用级）</td></tr>
+<tr><td><strong>Coder</strong></td><td>代码生成/漏洞分析/Exploit 开发</td><td>100（通用级）</td></tr>
+<tr><td><strong>Installer</strong></td><td>环境和依赖安装配置</td><td>100（通用级）</td></tr>
+<tr><td><strong>Searcher</strong></td><td>多源信息搜索（Google、DuckDuckGo、Sploitus 等）</td><td>20（受限级）</td></tr>
+<tr><td><strong>Adviser (Mentor)</strong></td><td>执行监督，检测死循环和异常行为</td><td>20（受限级）</td></tr>
+<tr><td><strong>Planner</strong></td><td>任务规划，生成结构化执行步骤</td><td>20（受限级）</td></tr>
+<tr><td><strong>Memorist</strong></td><td>记忆管理，写入/检索向量存储</td><td>20（受限级）</td></tr>
+<tr><td><strong>Reflector</strong></td><td>反思纠错，处理 LLM 调用失败</td><td>20（受限级）</td></tr>
+<tr><td><strong>Generator</strong></td><td>报告和内容生成</td><td>20（受限级）</td></tr>
+<tr><td><strong>Enricher</strong></td><td>上下文增强，分析执行环境</td><td>20（受限级）</td></tr>
+</table>
+
+<h2>4. 四层监督机制（核心创新）</h2>
+
+<h3>第 1 层：执行监控 — Mentor/Adviser（Beta）</h3>
+<ul>
+  <li>自动检测<strong>连续相同工具调用</strong>（阈值: 5 次）和<strong>总调用次数超限</strong>（阈值: 10 次）</li>
+  <li>Adviser Agent 被自动激活，评估执行进度，检测 Agent 是否陷入死循环</li>
+  <li>工具响应中注入 <code>&lt;mentor_analysis&gt;</code> 段落，提供改进建议</li>
+  <li>环境变量开关：<code>EXECUTION_MONITOR_ENABLED</code>（默认关闭）</li>
+  <li><strong>代价：</strong>2-3 倍执行时间和 Token 消耗 | <strong>收益：</strong>结果质量提升 2 倍</li>
+</ul>
+
+<h3>第 2 层：智能任务规划 — Planner（Beta）</h3>
+<ul>
+  <li>在专家 Agent 启动前，Planner 生成 <strong>3-7 个具体可执行步骤</strong></li>
+  <li>Enricher Agent 先分析完整执行上下文</li>
+  <li>原始请求包装在 <code>&lt;task_assignment&gt;</code> XML 结构中，附带执行计划</li>
+  <li><strong>防止 Agent 偏离目标（scope creep）</strong></li>
+  <li>环境变量开关：<code>AGENT_PLANNING_STEP_ENABLED</code>（默认关闭）</li>
+</ul>
+
+<h3>第 3 层：硬性工具调用限制（始终开启）</h3>
+<ul>
+  <li>通用 Agent（Assistant/Pentester/Coder/Installer）：默认 100 次上限</li>
+  <li>受限 Agent（其余）：默认 20 次上限</li>
+  <li>接近上限（剩余 ≤3 次）时触发 Reflector 引导优雅终止</li>
+</ul>
+
+<h3>第 4 层：Reflector 反思机制（始终开启）</h3>
+<ul>
+  <li>LLM <strong>连续 3 次</strong>未能生成有效工具调用时触发</li>
+  <li>分析失败原因，引导 Agent 改用 <code>done</code>（标记完成）或 <code>ask</code>（向用户提问）等屏障工具</li>
+  <li>具备<strong>递归保护</strong>（isReflectorRetry / markReflectorRetry 标志位），防止无限循环</li>
+  <li>协调在工具调用限制时的优雅终止</li>
+</ul>
+
+<div class="highlight-box">
+<strong>官方测试结论：</strong>对于参数量 32B 以下的开源小模型（如 Qwen3.5-27B-FP8），同时启用执行监控和任务规划后，<strong>结果质量相比无监督基线提升 2 倍</strong>。官方明确推荐小模型部署时默认开启这两项功能。
+</div>
+
+<h2>5. Agent 执行循环（performAgentChain）</h2>
+<p>核心执行引擎位于后端 <code>backend/pkg/providers/performer.go</code>，是一个多轮迭代的 Agent 循环：</p>
+
+<pre>
+loop（最多 100/20 次迭代）：
+│
+├─ 1. callWithRetries(LLM)
+│   ├─ 调用 LLM，流式获取响应
+│   ├─ 失败 → 等待 5s → 重试（最多 3 次）
+│   ├─ 全部失败 → performReflector(反思) → 重试
+│   └─ 成功 → 返回 tool_calls 列表
+│
+├─ 2. execToolCall（每个 tool_call）
+│   ├─ 重复检测器 → 连续相同调用超阈值 → 警告/中止
+│   ├─ 执行工具 → 失败 → fixToolCallArgs(修复参数) → 重试(最多3次)
+│   ├─ Mentor 监督 → 达到监控阈值 → 注入 mentor_analysis
+│   └─ 工具结果注入消息链
+│
+├─ 3. 流式推送 → reasoning/text chunks → 前端实时展示
+│
+├─ 4. Summarizer → 压缩消息链 → 防止 Token 溢出
+│
+├─ 5. 持久化 → 消息链 JSON → PostgreSQL + Token/Cost 记录
+│
+├─ 6. Graphiti → 可选 → 工具执行和 Agent 响应存入 Neo4j
+│
+├─ 7. 检查终止条件
+│   ├─ done/ask 工具被调用 → 正常退出
+│   ├─ 迭代次数接近上限 → Reflector 引导退出
+│   └─ 重复检测中止 → 异常退出
+│
+└─ 回到 loop
+</pre>
+
+<h2>6. 记忆系统架构</h2>
+<table>
+<tr><th>记忆类型</th><th>存储介质</th><th>内容</th><th>作用</th></tr>
+<tr><td><strong>长期记忆</strong></td><td>pgvector（向量数据库）</td><td>嵌入向量、领域知识、工具使用模式</td><td>跨会话知识复用</td></tr>
+<tr><td><strong>工作记忆</strong></td><td>当前会话上下文</td><td>任务状态、活动目标、系统资源</td><td>当前任务状态追踪</td></tr>
+<tr><td><strong>情景记忆</strong></td><td>历史记录 + Neo4j</td><td>过去命令序列、执行结果、成功模式</td><td>经验积累和模式识别</td></tr>
+</table>
+
+<p>三种记忆形成<strong>反馈闭环</strong>：</p>
+<pre>
+上下文查询 → 向量库检索相似任务
+目标规划 → 知识库提供领域知识
+动作执行 → 产生结果/模式
+模式提取 → 反哺向量库和知识图谱</pre>
+
+<h2>7. 消息链压缩系统（Chain Summarization）</h2>
+<p>独创的 <strong>ChainAST</strong>（消息链抽象语法树）结构，在压缩时保留消息类型信息（包括工具调用的结构化内容）：</p>
+
+<pre>
+压缩流程：
+1. 检查是否需要压缩（Token 使用率超阈值）
+2. 将消息链转换为 ChainAST（结构化表示）
+3. 分段摘要（Section Summarization）
+4. 处理超大消息对（Oversized Pairs）
+5. 管理尾部保留段（默认保留最后 N 条不压缩）
+6. QA 摘要（保留最近 7-10 个 QA 交互对）
+7. 重建压缩后的消息链
+8. 校验：如果压缩后反而更大 → 返回原始链</pre>
+
+<table>
+<tr><th>参数</th><th>全局默认</th><th>Assistant 专用</th></tr>
+<tr><td>保留尾部</td><td>PRESERVE_LAST=true</td><td>同全局</td></tr>
+<tr><td>尾部保留大小</td><td>50KB</td><td>75KB（更多记忆空间）</td></tr>
+<tr><td>最大 QA 段数</td><td>10</td><td>7</td></tr>
+<tr><td>QA 段最大字节</td><td>64KB</td><td>75KB</td></tr>
+</table>
+
+<h2>8. LLM 提供商抽象层</h2>
+<p><code>backend/pkg/providers/</code> 下 14 个子目录，每个实现统一的 Provider 接口：</p>
+
+<table>
+<tr><th>提供商</th><th>模型数</th><th>特性</th></tr>
+<tr><td>OpenAI</td><td>31</td><td>GPT-5.2/5.1/4.1/4o + o1/o3/o4-mini reasoning</td></tr>
+<tr><td>Anthropic</td><td>10</td><td>Opus 4.6 / Sonnet 4.6 / Haiku 4.5 + legacy</td></tr>
+<tr><td>Google Gemini</td><td>13</td><td>Gemini 3.1/3/2.5/2.0 + Gemma 开源</td></tr>
+<tr><td>AWS Bedrock</td><td>21</td><td>Nova/Claude/Cohere/DeepSeek/Qwen/Mistral</td></tr>
+<tr><td>DeepSeek</td><td>2</td><td>V3.2 Chat + Reasoner</td></tr>
+<tr><td>GLM (智谱)</td><td>12</td><td>MoE 架构，GLM-5 到 GLM-4</td></tr>
+<tr><td>Ollama</td><td>—</td><td>本地推理 + Ollama Cloud</td></tr>
+<tr><td>聚合器</td><td>—</td><td>OpenRouter / DeepInfra / LiteLLM Proxy</td></tr>
+</table>
+
+<p><strong>统一 Reasoning 处理：</strong>所有 Provider 的推理内容通过 <code>TextPartWithReasoning</code> 统一封装，实现跨 Provider 的 reasoning 去重和兼容。</p>
+
+<h2>9. 后端代码组织</h2>
+<table>
+<tr><th>包路径</th><th>文件数</th><th>职责</th></tr>
+<tr><td><code>pkg/controller/</code></td><td>22</td><td>实体 CRUD + 9 种日志通道 (alog/aslog/msglog/slog/termlog/vslog...)</td></tr>
+<tr><td><code>pkg/providers/</code></td><td>14 子目录 + 10 文件</td><td>LLM 抽象层 + Agent 执行引擎</td></tr>
+<tr><td><code>pkg/tools/</code></td><td>35</td><td>工具系统：搜索、浏览器、终端、代码、记忆，注册表模式</td></tr>
+<tr><td><code>pkg/graphiti/</code></td><td>—</td><td>Neo4j 知识图谱集成</td></tr>
+<tr><td><code>pkg/database/</code></td><td>—</td><td>PostgreSQL 数据访问层</td></tr>
+<tr><td><code>pkg/server/</code></td><td>—</td><td>REST + GraphQL API 服务</td></tr>
+<tr><td><code>pkg/queue/</code></td><td>—</td><td>异步任务队列</td></tr>
+<tr><td><code>pkg/docker/</code></td><td>—</td><td>Docker 沙箱编排</td></tr>
+<tr><td><code>pkg/terminal/</code></td><td>—</td><td>终端模拟</td></tr>
+</table>
+
+<h2>10. 安全架构</h2>
+<ul>
+  <li><strong>沙箱化执行：</strong>所有操作在独立 Docker 容器中运行</li>
+  <li><strong>网络隔离：</strong>核心服务、监控、分析各自独立网络</li>
+  <li><strong>双节点部署（生产推荐）：</strong>Worker 节点独立硬件 + Docker-in-Docker + TLS 认证</li>
+  <li><strong>API 认证：</strong>Bearer Token，支持配置过期时间（1 分钟 ～ 3 年）</li>
+  <li><strong>SSL 支持：</strong>默认自签名证书，支持自定义证书</li>
+</ul>
+
+<hr class="divider">
+
+<h2>总结</h2>
+
+<div class="highlight-box">
+<p>PentAGI 的本质设计理念是：</p>
+<p><strong>层级化多 Agent 协作 + 多层监督反思机制 + 结构化记忆系统 + 沙箱安全隔离</strong></p>
+<p>它把渗透测试这个复杂、开放式的安全问题，分解为可管理的子任务链。其真正的工程创新不在于单个 Agent 的能力，而在于：</p>
+<ol>
+  <li><strong>Agent 之间的编排体系</strong>（Researcher → Developer → Executor）</li>
+  <li><strong>四层监督纠错机制</strong>（Mentor/Planner/Limits/Reflector）</li>
+  <li><strong>ChainAST 消息压缩</strong>对长对话上下文管理的工程化处理</li>
+  <li><strong>三类型记忆系统的反馈闭环</strong>（长期/工作/情景记忆联动）</li>
+</ol>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,45 @@
+# Binaries
+backend/bin/
+
+# Go
+*.exe
+*.exe~
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Python
+ai-service/__pycache__/
+ai-service/.venv/
+ai-service/*.pyc
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+/tmp/
+
+# Docker volumes
+pgdata/
+neo4jdata/
+neo4jlogs/
+prometheus_data/
+grafana_data/
+
+# Session files
+.cc-connect/sessions/
+.cc-connect/run/
+.cc-connect/logs/

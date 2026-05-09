@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: defense-pg
+    environment:
+      POSTGRES_DB: defense_agent
+      POSTGRES_USER: defense
+      POSTGRES_PASSWORD: defense123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/store/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U defense -d defense_agent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - defense-net
+
+  neo4j:
+    image: neo4j:5.24
+    container_name: defense-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/defense123
+      NEO4J_PLUGINS: '["apoc"]'
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4jdata:/data
+      - neo4jlogs:/logs
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "defense123", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - defense-net
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: defense-nats
+    command: "-js --http_port 8222"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "nats", "server", "check", "-s", "nats://localhost:4222"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - defense-net
+
+  sandbox:
+    image: ubuntu:24.04
+    container_name: defense-sandbox
+    command: >
+      bash -c "
+        apt-get update -qq &&
+        apt-get install -y -qq curl wget nmap sqlmap openssh-client net-tools iproute2 2>&1 | tail -2 &&
+        echo 'Sandbox ready' &&
+        sleep infinity
+      "
+    environment:
+      DEBIAN_FRONTEND: noninteractive
+    networks:
+      - defense-net
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  neo4jdata:
+  neo4jlogs:
+
+networks:
+  defense-net:
+    driver: bridge
